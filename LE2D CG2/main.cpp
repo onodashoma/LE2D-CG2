@@ -10,6 +10,11 @@
 #include <DirectXMath.h>
 #include <d3dcompiler.h>
 #pragma comment(lib, "d3dcompiler.lib")
+#define DIRECTINPUT_VERSION 0x0800
+#include<dinput.h>
+
+#pragma comment(lib,"dinput8.lib")
+#pragma comment(lib,"dxguid.lib")
 
 
 using namespace DirectX;
@@ -200,6 +205,30 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 	UINT64 fenceVal = 0;
 	result = device->CreateFence(fenceVal, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&fence));
 
+	//DirectInputの初期化
+	IDirectInput8* directInput = nullptr;
+	result = DirectInput8Create(
+		w.hInstance, DIRECTINPUT_VERSION, IID_IDirectInput8,
+		(void**)&directInput, nullptr);
+	assert(SUCCEEDED(result));
+
+	//キーボードデバイスの生成
+	IDirectInputDevice8* keyboard = nullptr;
+	result = directInput->CreateDevice(GUID_SysKeyboard, &keyboard, NULL);
+	assert(SUCCEEDED(result));
+
+	//入力データ形式のセット
+	result = keyboard->SetDataFormat(&c_dfDIKeyboard);//標準形式
+	assert(SUCCEEDED(result));
+
+	//排他制御レベルのセット
+	result = keyboard->SetCooperativeLevel(
+		hwnd, DISCL_FOREGROUND | DISCL_NONEXCLUSIVE | DISCL_NOWINKEY);
+	assert(SUCCEEDED(result));
+
+	// DirectX初期化処理 ここまで
+
+
 	// 頂点データ
 	XMFLOAT3 vertices[] = {
 	{ -0.5f, -0.5f, 0.0f }, // 左下
@@ -368,7 +397,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 	result = device->CreateGraphicsPipelineState(&pipelineDesc, IID_PPV_ARGS(&pipelineState));
 	assert(SUCCEEDED(result));
 
-// DirectX初期化処理 ここまで
+
 // ゲームループ
 	while (true) {
 		// メッセージがある?
@@ -382,6 +411,20 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 		}
 		// DirectX毎フレーム処理 ここから
 		
+		//キーボード情報の取得開始
+		keyboard->Acquire();
+
+		//全キーの入力状態を取得する
+		BYTE key[256] = {};
+		keyboard->GetDeviceState(sizeof(key), key);
+		
+		//数字の０キーが押されていたら
+		if (key[DIK_0])
+		{
+			OutputDebugStringA("Hit0\n");//出力ウィンドウに「Hit 0」と表示
+		}
+		
+
 		// バックバッファの番号を取得(2つなので0番か1番)
 		UINT bbIndex = swapChain->GetCurrentBackBufferIndex();
 		// 1.リソースバリアで書き込み可能に変更
@@ -399,8 +442,13 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 
 		// 3.画面クリア R G B A
 		FLOAT clearColor[] = { 0.1f,0.25f, 0.5f,0.0f }; // 青っぽい色
+		if (key[DIK_SPACE])//スペースキーが押されていたら
+		{
+			clearColor[0] = 0.5f;
+		}
 		commandList->ClearRenderTargetView(rtvHandle, clearColor, 0, nullptr);
 
+		
 		// 4.描画コマンドここから
 		
 		// ビューポート設定コマンド
